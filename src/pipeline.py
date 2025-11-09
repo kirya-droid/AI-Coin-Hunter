@@ -130,20 +130,21 @@ def pipeline_once():
             if news_cfg and news_cfg.enabled:
                 symbols = feats["symbol"].tolist()
                 unique_symbol_count = len({sym.upper() for sym in symbols if sym})
+                lookback = getattr(news_cfg, "lookback_hours", None)
+                max_headlines = getattr(news_cfg, "max_headlines", None)
                 logger.info(
-                    "Загружаем новости CryptoPanic: тикеров={} (lookback={}h, max_headlines={})",
-                    unique_symbol_count,
-                    getattr(news_cfg, "lookback_hours", None),
-                    getattr(news_cfg, "max_headlines", None),
+                    f"Загружаем новости CryptoPanic: тикеров={unique_symbol_count} "
+                    f"(lookback={lookback}h, max_headlines={max_headlines})"
                 )
                 news_map = fetch_asset_news(symbols, news_cfg)
                 total_headlines = sum(len(v.get("headlines", [])) for v in news_map.values())
+                symbols_with_news = len([1 for v in news_map.values() if v.get("headlines")])
                 logger.info(
-                    "CryptoPanic новости: тикеров с новостями={} / {}, заголовков={}",
-                    len([1 for v in news_map.values() if v.get("headlines")]),
-                    unique_symbol_count,
-                    total_headlines,
+                    f"CryptoPanic новости: тикеров с новостями={symbols_with_news} / "
+                    f"{unique_symbol_count}, заголовков={total_headlines}"
                 )
+                if total_headlines == 0:
+                    logger.warning("CryptoPanic: заголовки не найдены для текущего запуска")
                 feats = feats.copy()
                 feats["symbol_upper"] = feats["symbol"].str.upper()
                 feats["news_count"] = feats["symbol_upper"].map(lambda sym: len(news_map.get(sym, {}).get("headlines", [])))
@@ -152,6 +153,8 @@ def pipeline_once():
             else:
                 if news_cfg and not news_cfg.enabled:
                     logger.info("CryptoPanic новости отключены конфигурацией")
+                else:
+                    logger.info("CryptoPanic конфигурация отсутствует — новости пропущены")
                 feats = feats.copy()
                 feats["news_count"] = 0
                 feats["news_sentiment"] = 0.0
