@@ -127,16 +127,19 @@ def pipeline_once():
                     merged["enabled"] = True
                     news_cfg = CryptoPanicCfg(**merged)
 
-            if news_cfg:
+            if news_cfg is None:
                 logger.info(
-                    "CryptoPanic конфиг: enabled={}, lookback={}h, max_headlines={}, min_votes={}",
-                    "yes" if getattr(news_cfg, "enabled", False) else "no",
-                    getattr(news_cfg, "lookback_hours", "?"),
-                    getattr(news_cfg, "max_headlines", "?"),
-                    getattr(news_cfg, "min_votes", "?"),
+                    "CryptoPanic: конфигурация отсутствует (sources.cryptopanic не задан)"
                 )
             else:
-                logger.info("CryptoPanic конфиг не найден (sources.cryptopanic отсутствует)")
+                enabled_flag = "yes" if getattr(news_cfg, "enabled", False) else "no"
+                lookback_hours = getattr(news_cfg, "lookback_hours", "?")
+                max_headlines = getattr(news_cfg, "max_headlines", "?")
+                min_votes = getattr(news_cfg, "min_votes", "?")
+                logger.info(
+                    f"CryptoPanic: enabled={enabled_flag} | lookback={lookback_hours}h | "
+                    f"max_headlines={max_headlines} | min_votes={min_votes}"
+                )
             news_map: dict[str, dict] = {}
             if news_cfg and news_cfg.enabled:
                 symbols = feats["symbol"].tolist()
@@ -144,15 +147,15 @@ def pipeline_once():
                 lookback = getattr(news_cfg, "lookback_hours", None)
                 max_headlines = getattr(news_cfg, "max_headlines", None)
                 logger.info(
-                    f"Загружаем новости CryptoPanic: тикеров={unique_symbol_count} "
-                    f"(lookback={lookback}h, max_headlines={max_headlines})"
+                    f"CryptoPanic: запрашиваем новости (тикеров={unique_symbol_count}, "
+                    f"lookback={lookback}h, max_headlines={max_headlines})"
                 )
                 news_map = fetch_asset_news(symbols, news_cfg)
                 total_headlines = sum(len(v.get("headlines", [])) for v in news_map.values())
                 symbols_with_news = len([1 for v in news_map.values() if v.get("headlines")])
                 logger.info(
-                    f"CryptoPanic новости: тикеров с новостями={symbols_with_news} / "
-                    f"{unique_symbol_count}, заголовков={total_headlines}"
+                    f"CryptoPanic: получено новостей для {symbols_with_news}/{unique_symbol_count} "
+                    f"тикеров, заголовков={total_headlines}"
                 )
                 if total_headlines == 0:
                     logger.warning("CryptoPanic: заголовки не найдены для текущего запуска")

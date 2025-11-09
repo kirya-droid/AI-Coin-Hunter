@@ -41,6 +41,10 @@ def fetch_asset_news(symbols: Iterable[str], cfg: CryptoPanicCfg) -> Dict[str, D
         return {}
 
     results: Dict[str, Dict[str, Any]] = {}
+    logger.info(
+        f"CryptoPanic: всего уникальных тикеров={len(unique_symbols)} "
+        f"(max_headlines={cfg.max_headlines}, lookback={cfg.lookback_hours}h)"
+    )
     max_headlines = cfg.max_headlines if cfg.max_headlines and cfg.max_headlines > 0 else None
     cutoff = dt.datetime.now(UTC) - dt.timedelta(hours=max(1, cfg.lookback_hours))
 
