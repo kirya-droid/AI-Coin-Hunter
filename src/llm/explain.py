@@ -58,17 +58,37 @@ def _build_clues(item: dict) -> str:
     volume_change = float(item.get("volume_change_24h_pct", 0.0) or 0.0)
     rvol = float(item.get("rvol", 0.0) or 0.0)
     market_cap = float(item.get("market_cap", 0.0) or 0.0)
+    price_change_7d = float(item.get("price_change_percentage_7d", 0.0) or 0.0)
+    price_change_30d = float(item.get("price_change_percentage_30d", 0.0) or 0.0)
+    intraday_range = float(item.get("intraday_range_pct", 0.0) or 0.0)
+    volatility = float(item.get("volatility_annualized_pct", 0.0) or 0.0)
+    news_count = int(item.get("news_count", 0) or 0)
+    news_sentiment = float(item.get("news_sentiment", 0.0) or 0.0)
     if abs(price_change) >= 20:
         trend = "рост" if price_change > 0 else "падение"
         clues.append(f"Цена показала {trend} на {price_change:+.1f}% за сутки")
+    if abs(price_change_7d) >= 30:
+        clues.append(f"На горизонте 7д изменение {price_change_7d:+.1f}%")
+    if abs(price_change_30d) >= 60:
+        clues.append(f"30-дневная динамика {price_change_30d:+.1f}% ⇒ долгосрочный тренд")
     if abs(volume_change) >= 500:
         clues.append(f"Объём вырос примерно на {volume_change:+.0f}% относительно предыдущего периода")
     if rvol >= 10:
         clues.append(f"rVOL {rvol:.1f} ⇒ обороты значительно выше среднего")
+    if intraday_range >= 15:
+        clues.append(f"Диапазон суток {intraday_range:.1f}% ⇒ резкие движения")
+    if volatility >= 150:
+        clues.append(f"Оценочная волатильность {volatility:.0f}% годовых ⇒ высокая рискованность")
     if market_cap and market_cap < 1_000_000_000:
         clues.append("Относительно небольшая капитализация ⇒ возможна манипулятивность")
     if market_cap and market_cap > 10_000_000_000:
         clues.append("Крупная капитализация ⇒ вероятны институциональные драйверы")
+    if news_count:
+        sentiment_hint = "" if abs(news_sentiment) < 0.2 else ("позитивный" if news_sentiment > 0 else "негативный")
+        clues.append(
+            f"За последние сутки найдено {news_count} релевантных новостей"
+            + (f", общий тон: {sentiment_hint}" if sentiment_hint else "")
+        )
     return "; ".join(clues) if clues else "дополнительных подсказок нет"
 
 
@@ -79,6 +99,7 @@ def explain_signal(
     temperature: float | None = None,
     max_tokens: int | None = None,
     window_hours: int | None = None,
+    news_brief: str | None = None,
 ) -> tuple[str, str, float]:
     """Возвращает (summary, risk, score)."""
 
@@ -88,9 +109,14 @@ def explain_signal(
         price=_format_number(item.get("current_price"), precision=4),
         market_cap=f"{float(item.get('market_cap', 0.0) or 0.0):,.0f}",
         dprice=float(item.get("price_change_percentage_24h", 0.0) or 0.0),
+        dprice7=float(item.get("price_change_percentage_7d", 0.0) or 0.0),
+        dprice30=float(item.get("price_change_percentage_30d", 0.0) or 0.0),
         dvol=float(item.get("volume_change_24h_pct", 0.0) or 0.0),
         rvol=float(item.get("rvol", 0.0) or 0.0),
         window_hours=window_hours or 24,
+        range24=float(item.get("intraday_range_pct", 0.0) or 0.0),
+        volatility=float(item.get("volatility_annualized_pct", 0.0) or 0.0),
+        news_brief=news_brief or "нет подтверждённых новостей",
         clues=_build_clues(item),
     )
     req_model = model or "gpt-5-nano"

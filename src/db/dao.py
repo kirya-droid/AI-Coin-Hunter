@@ -17,9 +17,15 @@ CREATE TABLE IF NOT EXISTS snapshots (
   symbol TEXT,
   price REAL,
   price_change_24h REAL,
+  price_change_7d REAL,
+  price_change_30d REAL,
   volume_24h REAL,
   volume_change_24h REAL,
   rvol REAL,
+  intraday_range_pct REAL,
+  volatility_annualized_pct REAL,
+  news_count INTEGER,
+  news_sentiment REAL,
   created_at TEXT
 );
 CREATE TABLE IF NOT EXISTS signals (
@@ -71,6 +77,19 @@ class DB:
             self.conn.execute("ALTER TABLE signal_performance ADD COLUMN window_hours INTEGER")
         if "evaluated_at" not in cols:
             self.conn.execute("ALTER TABLE signal_performance ADD COLUMN evaluated_at TEXT")
+        cur = self.conn.execute("PRAGMA table_info(snapshots)")
+        snap_cols = {row[1] for row in cur.fetchall()}
+        migrations: list[tuple[str, str]] = [
+            ("price_change_7d", "REAL"),
+            ("price_change_30d", "REAL"),
+            ("intraday_range_pct", "REAL"),
+            ("volatility_annualized_pct", "REAL"),
+            ("news_count", "INTEGER"),
+            ("news_sentiment", "REAL"),
+        ]
+        for col_name, col_type in migrations:
+            if col_name not in snap_cols:
+                self.conn.execute(f"ALTER TABLE snapshots ADD COLUMN {col_name} {col_type}")
         self.conn.commit()
 
     def __enter__(self):
@@ -104,12 +123,31 @@ class DB:
         created_iso = (created_at or dt.datetime.utcnow()).isoformat()
         self.conn.executemany(
             """
-            INSERT INTO snapshots(run_id, asset_id, symbol, price, price_change_24h, volume_24h, volume_change_24h, rvol, created_at)
-            VALUES(?,?,?,?,?,?,?,?,?)
+            INSERT INTO snapshots(
+                run_id, asset_id, symbol, price,
+                price_change_24h, price_change_7d, price_change_30d,
+                volume_24h, volume_change_24h, rvol,
+                intraday_range_pct, volatility_annualized_pct,
+                news_count, news_sentiment, created_at
+            )
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             [(
-                run_id, r["asset_id"], r["symbol"].upper(), r.get("current_price", 0.0), r.get("price_change_percentage_24h", 0.0),
-                r.get("total_volume", 0.0), r.get("volume_change_24h_pct", 0.0), r.get("rvol", 0.0), created_iso
+                run_id,
+                r["asset_id"],
+                r["symbol"].upper(),
+                r.get("current_price", 0.0),
+                r.get("price_change_percentage_24h", 0.0),
+                r.get("price_change_percentage_7d", 0.0),
+                r.get("price_change_percentage_30d", 0.0),
+                r.get("total_volume", 0.0),
+                r.get("volume_change_24h_pct", 0.0),
+                r.get("rvol", 0.0),
+                r.get("intraday_range_pct", 0.0),
+                r.get("volatility_annualized_pct", 0.0),
+                int(r.get("news_count", 0) or 0),
+                float(r.get("news_sentiment", 0.0) or 0.0),
+                created_iso,
             ) for r in rows]
         )
         self.conn.commit()
@@ -173,6 +211,27 @@ class DB:
             }
         return result
 
+    def get_price_history(self, window_hours: int = 72) -> Dict[str, List[tuple[str, float]]]:
+        cutoff = dt.datetime.utcnow() - dt.timedelta(hours=window_hours)
+        cur = self.conn.execute(
+            """
+            SELECT asset_id, price, created_at
+            FROM snapshots
+            WHERE created_at >= ?
+            ORDER BY asset_id, created_at ASC
+            """,
+            (cutoff.isoformat(),),
+        )
+        history: Dict[str, List[tuple[str, float]]] = {}
+        for row in cur.fetchall():
+            price = row["price"]
+            try:
+                price_f = float(price)
+            except (TypeError, ValueError):
+                continue
+            history.setdefault(row["asset_id"], []).append((row["created_at"], price_f))
+        return history
+
     def get_latest_volumes(self) -> Dict[str, float]:
         """Backward compatible helper returning only volume."""
         stats = self.get_latest_snapshot_stats()
@@ -219,3 +278,25 @@ class DB:
             (price_after_window, roi_pct, evaluated_at.isoformat(), signal_id),
         )
         self.conn.commit()
+
+    def get_performance_summary(self, days: int = 7) -> Dict[str, Any]:
+        cutoff = dt.datetime.utcnow() - dt.timedelta(days=days)
+        cur = self.conn.execute(
+            """
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN roi_pct IS NOT NULL AND roi_pct >= 0 THEN 1 ELSE 0 END) AS winners,
+                SUM(CASE WHEN roi_pct IS NOT NULL AND roi_pct < 0 THEN 1 ELSE 0 END) AS losers,
+                AVG(roi_pct) AS avg_roi,
+                MAX(roi_pct) AS max_roi,
+                MIN(roi_pct) AS min_roi
+            FROM signal_performance
+            WHERE evaluated_at IS NOT NULL
+              AND datetime(evaluated_at) >= datetime(?)
+            """,
+            (cutoff.isoformat(),),
+        )
+        row = cur.fetchone()
+        if not row or row["total"] == 0:
+            return {}
+        return dict(row)

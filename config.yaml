@@ -6,7 +6,13 @@ sources:
     enabled: true
     top_n: 200
   news:
-    enabled: false   # включим позже
+    enabled: false   # устаревший раздел, сохранён для обратной совместимости
+  cryptopanic:
+    enabled: false
+    auth_token: ""
+    min_votes: 0
+    max_headlines: 3
+    lookback_hours: 24
 anomaly:
   mode: rules
   rules:
@@ -24,3 +30,8 @@ notify:
     enabled: true
 schedule:
   interval_minutes: 30
+ml:
+  enabled: false
+  model_path: models/baseline.joblib
+  threshold: 0.55
+  feature_overrides: []

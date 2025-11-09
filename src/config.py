@@ -1,6 +1,6 @@
 from __future__ import annotations
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Optional, List
 import yaml, os
 
 class RulesCfg(BaseModel):
@@ -25,9 +25,18 @@ class LLMCfg(BaseModel):
     temperature: float = 0.35
     max_tokens: int = 220
 
+class CryptoPanicCfg(BaseModel):
+    enabled: bool = False
+    auth_token: Optional[str] = None
+    min_votes: int = 0
+    max_headlines: int = 3
+    lookback_hours: int = 24
+
+
 class SourcesCfg(BaseModel):
     coingecko: Optional[dict] = None
-    news: Optional[dict] = None
+    news: Optional[dict] = None  # backward compatibility with legacy configs
+    cryptopanic: CryptoPanicCfg = Field(default_factory=CryptoPanicCfg)
 
 class AppCfg(BaseModel):
     base_currency: str = "USDT"
@@ -36,6 +45,12 @@ class AppCfg(BaseModel):
 class ScheduleCfg(BaseModel):
     interval_minutes: int = 30
 
+class MLCfg(BaseModel):
+    enabled: bool = False
+    model_path: Optional[str] = None
+    threshold: float = 0.55
+    feature_overrides: Optional[List[str]] = None
+
 class Cfg(BaseModel):
     app: AppCfg
     sources: SourcesCfg
@@ -43,6 +58,7 @@ class Cfg(BaseModel):
     notify: NotifyCfg
     schedule: ScheduleCfg
     llm: LLMCfg = LLMCfg()
+    ml: MLCfg = MLCfg()
 
 _def_path = os.environ.get("CONFIG_PATH", "config.yaml")
 
