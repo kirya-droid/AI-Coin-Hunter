@@ -1,0 +1,21 @@
+app:
+  base_currency: USDT
+  network_timeout_s: 20
+sources:
+  coingecko:
+    enabled: true
+    top_n: 200
+  news:
+    enabled: false   # включим позже
+anomaly:
+  mode: rules
+  rules:
+    min_price_change_24h_pct: 15
+    min_volume_change_24h_pct: 200
+    min_rvol: 3
+    min_market_cap_usd: 5000000
+notify:
+  telegram:
+    enabled: true
+schedule:
+  interval_minutes: 30

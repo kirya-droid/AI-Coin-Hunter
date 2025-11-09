@@ -1,0 +1,11 @@
+apscheduler
+python-dotenv
+requests
+pandas
+numpy
+scikit-learn
+pydantic
+pyyaml
+aiogram
+loguru
+openai
