@@ -128,13 +128,30 @@ def pipeline_once():
                     news_cfg = CryptoPanicCfg(**merged)
             news_map: dict[str, dict] = {}
             if news_cfg and news_cfg.enabled:
-                news_map = fetch_asset_news(feats["symbol"].tolist(), news_cfg)
+                symbols = feats["symbol"].tolist()
+                unique_symbol_count = len({sym.upper() for sym in symbols if sym})
+                logger.info(
+                    "Загружаем новости CryptoPanic: тикеров={} (lookback={}h, max_headlines={})",
+                    unique_symbol_count,
+                    getattr(news_cfg, "lookback_hours", None),
+                    getattr(news_cfg, "max_headlines", None),
+                )
+                news_map = fetch_asset_news(symbols, news_cfg)
+                total_headlines = sum(len(v.get("headlines", [])) for v in news_map.values())
+                logger.info(
+                    "CryptoPanic новости: тикеров с новостями={} / {}, заголовков={}",
+                    len([1 for v in news_map.values() if v.get("headlines")]),
+                    unique_symbol_count,
+                    total_headlines,
+                )
                 feats = feats.copy()
                 feats["symbol_upper"] = feats["symbol"].str.upper()
                 feats["news_count"] = feats["symbol_upper"].map(lambda sym: len(news_map.get(sym, {}).get("headlines", [])))
                 feats["news_sentiment"] = feats["symbol_upper"].map(lambda sym: news_map.get(sym, {}).get("sentiment_score", 0.0))
                 feats.drop(columns=["symbol_upper"], inplace=True)
             else:
+                if news_cfg and not news_cfg.enabled:
+                    logger.info("CryptoPanic новости отключены конфигурацией")
                 feats = feats.copy()
                 feats["news_count"] = 0
                 feats["news_sentiment"] = 0.0
