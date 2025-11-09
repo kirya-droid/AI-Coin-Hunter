@@ -4,11 +4,37 @@ import os
 
 _client = None
 
+
 def _client_once():
     global _client
     if _client is None:
         _client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     return _client
+
+
+def _parse_sections(text: str) -> tuple[str, float]:
+    risk = ""
+    score = 0.5
+    conclusion = ""
+    for part in text.split("|"):
+        chunk = part.strip()
+        low = chunk.lower()
+        if low.startswith("риски:"):
+            risk = chunk.split(":", 1)[1].strip() if ":" in chunk else chunk
+        elif low.startswith("вывод:"):
+            conclusion = chunk.split(":", 1)[1].strip() if ":" in chunk else chunk
+    if conclusion:
+        low_conc = conclusion.lower()
+        if any(word in low_conc for word in ("наблюдай", "наблюдать")):
+            score = 0.4
+        if any(word in low_conc for word in ("осторож", "риск")):
+            score = min(score, 0.3)
+        if any(word in low_conc for word in ("вход", "покуп", "long", "bull")):
+            score = max(score, 0.7)
+        if any(word in low_conc for word in ("фикс", "продаж", "sell", "short")):
+            score = min(score, 0.2)
+    return risk, score
+
 
 def explain_signal(item: dict) -> tuple[str, str, float]:
     """Возвращает (summary, risk, score)."""
@@ -28,8 +54,8 @@ def explain_signal(item: dict) -> tuple[str, str, float]:
         )
         text = resp.choices[0].message.content.strip()
     except Exception as e:
-        text = f"LLM недоступен: {e}. Гипотеза: технический рост на высоком rVOL; Риск: волатильность; Вывод: наблюдать."
-    summary = text
-    risk = ""
-    score = 0.5
-    return summary, risk, score
+        text = (
+            f"LLM недоступен: {e}. Причина: технический рост на высоком rVOL | Риски: волатильность | Вывод: наблюдать."
+        )
+    risk, score = _parse_sections(text)
+    return text, risk, score

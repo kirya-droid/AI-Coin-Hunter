@@ -20,8 +20,8 @@ class NotifyCfg(BaseModel):
     telegram: NotifyTelegramCfg = NotifyTelegramCfg()
 
 class SourcesCfg(BaseModel):
-    coingecko: dict
-    news: dict
+    coingecko: Optional[dict] = None
+    news: Optional[dict] = None
 
 class AppCfg(BaseModel):
     base_currency: str = "USDT"
