@@ -14,6 +14,7 @@ anomaly:
     min_volume_change_24h_pct: 200
     min_rvol: 3
     min_market_cap_usd: 5000000
+    performance_window_hours: 24
 notify:
   telegram:
     enabled: true

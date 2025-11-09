@@ -8,6 +8,7 @@ class RulesCfg(BaseModel):
     min_volume_change_24h_pct: float = 200
     min_rvol: float = 3
     min_market_cap_usd: float = 5_000_000
+    performance_window_hours: int = 24
 
 class AnomalyCfg(BaseModel):
     mode: str = "rules"

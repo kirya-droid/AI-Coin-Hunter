@@ -43,6 +43,10 @@ def evaluate_signal_performance(db: DB, base_currency: str = "usd") -> List[dict
                 "price_after": price_after,
                 "roi_pct": roi_pct,
                 "window_hours": row.get("window_hours") or 24,
+                "risk_note": row.get("risk_note") or "",
+                "score": float(row.get("score") or 0.0),
+                "llm_summary": row.get("llm_summary") or "",
+                "signal_created_at": signal_time,
             }
         )
     return updates
