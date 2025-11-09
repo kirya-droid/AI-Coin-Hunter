@@ -15,6 +15,10 @@ anomaly:
     min_rvol: 3
     min_market_cap_usd: 5000000
     performance_window_hours: 24
+llm:
+  model: gpt-5-nano
+  temperature: 0.35
+  max_tokens: 220
 notify:
   telegram:
     enabled: true

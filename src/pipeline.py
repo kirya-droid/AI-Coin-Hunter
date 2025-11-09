@@ -42,6 +42,7 @@ def pipeline_once():
     cfg = load_config()
     base_currency = (cfg.app.base_currency or "usd").lower()
     performance_window = cfg.anomaly.rules.performance_window_hours
+    llm_cfg = getattr(cfg, "llm", None)
     with DB() as db:
         run_id = db.run_start()
         try:
@@ -63,7 +64,13 @@ def pipeline_once():
             db.insert_snapshots(run_id, feats.to_dict(orient="records"), created_at=snapshot_time)
             logger.info(f"Найдено кандидатов: {len(candidates)}")
             for it in candidates:
-                summary, risk, score = explain_signal(it)
+                summary, risk, score = explain_signal(
+                    it,
+                    model=getattr(llm_cfg, "model", None) if llm_cfg else None,
+                    temperature=getattr(llm_cfg, "temperature", None) if llm_cfg else None,
+                    max_tokens=getattr(llm_cfg, "max_tokens", None) if llm_cfg else None,
+                    window_hours=performance_window,
+                )
                 signal_id = db.insert_signal(
                     run_id,
                     it["asset_id"],

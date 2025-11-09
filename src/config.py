@@ -20,6 +20,11 @@ class NotifyTelegramCfg(BaseModel):
 class NotifyCfg(BaseModel):
     telegram: NotifyTelegramCfg = NotifyTelegramCfg()
 
+class LLMCfg(BaseModel):
+    model: str = "gpt-5-nano"
+    temperature: float = 0.35
+    max_tokens: int = 220
+
 class SourcesCfg(BaseModel):
     coingecko: Optional[dict] = None
     news: Optional[dict] = None
@@ -37,6 +42,7 @@ class Cfg(BaseModel):
     anomaly: AnomalyCfg
     notify: NotifyCfg
     schedule: ScheduleCfg
+    llm: LLMCfg = LLMCfg()
 
 _def_path = os.environ.get("CONFIG_PATH", "config.yaml")
 
