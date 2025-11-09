@@ -126,6 +126,17 @@ def pipeline_once():
                     )
                     merged["enabled"] = True
                     news_cfg = CryptoPanicCfg(**merged)
+
+            if news_cfg:
+                logger.info(
+                    "CryptoPanic конфиг: enabled={}, lookback={}h, max_headlines={}, min_votes={}",
+                    "yes" if getattr(news_cfg, "enabled", False) else "no",
+                    getattr(news_cfg, "lookback_hours", "?"),
+                    getattr(news_cfg, "max_headlines", "?"),
+                    getattr(news_cfg, "min_votes", "?"),
+                )
+            else:
+                logger.info("CryptoPanic конфиг не найден (sources.cryptopanic отсутствует)")
             news_map: dict[str, dict] = {}
             if news_cfg and news_cfg.enabled:
                 symbols = feats["symbol"].tolist()
