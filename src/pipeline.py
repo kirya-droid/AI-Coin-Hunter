@@ -1,7 +1,7 @@
 import datetime as dt
 
 from loguru import logger
-from .config import load_config
+from .config import load_config, CryptoPanicCfg
 from .db.dao import DB
 from .ingest.coingecko import fetch_top_markets
 from .ingest.news import fetch_asset_news
@@ -114,6 +114,18 @@ def pipeline_once():
                 current_time=snapshot_time,
             )
             news_cfg = getattr(cfg.sources, "cryptopanic", None)
+            legacy_news = getattr(cfg.sources, "news", None)
+            if (not news_cfg or not news_cfg.enabled) and isinstance(legacy_news, dict):
+                if legacy_news.get("enabled"):
+                    merged = {}
+                    if news_cfg:
+                        base_cfg = news_cfg.model_dump() if hasattr(news_cfg, "model_dump") else news_cfg.dict()
+                        merged.update(base_cfg)
+                    merged.update(
+                        {k: legacy_news.get(k) for k in ("auth_token", "min_votes", "max_headlines", "lookback_hours") if k in legacy_news}
+                    )
+                    merged["enabled"] = True
+                    news_cfg = CryptoPanicCfg(**merged)
             news_map: dict[str, dict] = {}
             if news_cfg and news_cfg.enabled:
                 news_map = fetch_asset_news(feats["symbol"].tolist(), news_cfg)
