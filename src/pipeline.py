@@ -90,6 +90,41 @@ def _format_digest(summary: dict, *, days: int) -> str:
     )
 
 
+def _resolve_news_cfg(cfg) -> tuple[CryptoPanicCfg | None, str]:
+    news_cfg = getattr(cfg.sources, "cryptopanic", None)
+    legacy_news = getattr(cfg.sources, "news", None)
+    reason: str
+
+    if news_cfg is None:
+        reason = "раздел sources.cryptopanic отсутствует"
+    elif getattr(news_cfg, "enabled", False):
+        reason = "sources.cryptopanic.enabled=true"
+    else:
+        reason = "sources.cryptopanic.enabled=false"
+
+    if isinstance(legacy_news, dict) and legacy_news.get("enabled"):
+        merged = {}
+        if news_cfg:
+            base_cfg = (
+                news_cfg.model_dump()
+                if hasattr(news_cfg, "model_dump")
+                else news_cfg.dict()
+            )
+            merged.update(base_cfg)
+        merged.update(
+            {
+                key: legacy_news.get(key)
+                for key in ("auth_token", "min_votes", "max_headlines", "lookback_hours")
+                if key in legacy_news
+            }
+        )
+        merged["enabled"] = True
+        news_cfg = CryptoPanicCfg(**merged)
+        reason = "legacy sources.news.enabled=true → CryptoPanic включён"
+
+    return news_cfg, reason
+
+
 def pipeline_once():
     cfg = load_config()
     base_currency = (cfg.app.base_currency or "usd").lower()
@@ -113,32 +148,19 @@ def pipeline_once():
                 price_history=price_history,
                 current_time=snapshot_time,
             )
-            news_cfg = getattr(cfg.sources, "cryptopanic", None)
-            legacy_news = getattr(cfg.sources, "news", None)
-            if (not news_cfg or not news_cfg.enabled) and isinstance(legacy_news, dict):
-                if legacy_news.get("enabled"):
-                    merged = {}
-                    if news_cfg:
-                        base_cfg = news_cfg.model_dump() if hasattr(news_cfg, "model_dump") else news_cfg.dict()
-                        merged.update(base_cfg)
-                    merged.update(
-                        {k: legacy_news.get(k) for k in ("auth_token", "min_votes", "max_headlines", "lookback_hours") if k in legacy_news}
-                    )
-                    merged["enabled"] = True
-                    news_cfg = CryptoPanicCfg(**merged)
-
-            if news_cfg is None:
-                logger.info(
-                    "CryptoPanic: конфигурация отсутствует (sources.cryptopanic не задан)"
-                )
-            else:
+            news_cfg, news_reason = _resolve_news_cfg(cfg)
+            logger.info("CryptoPanic: {}", news_reason)
+            if news_cfg is not None:
                 enabled_flag = "yes" if getattr(news_cfg, "enabled", False) else "no"
                 lookback_hours = getattr(news_cfg, "lookback_hours", "?")
                 max_headlines = getattr(news_cfg, "max_headlines", "?")
                 min_votes = getattr(news_cfg, "min_votes", "?")
                 logger.info(
-                    f"CryptoPanic: enabled={enabled_flag} | lookback={lookback_hours}h | "
-                    f"max_headlines={max_headlines} | min_votes={min_votes}"
+                    "CryptoPanic параметры: enabled=%s | lookback=%sh | max_headlines=%s | min_votes=%s",
+                    enabled_flag,
+                    lookback_hours,
+                    max_headlines,
+                    min_votes,
                 )
             news_map: dict[str, dict] = {}
             if news_cfg and news_cfg.enabled:

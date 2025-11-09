@@ -1,6 +1,8 @@
 from __future__ import annotations
+from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import Optional, List
+from loguru import logger
 import yaml, os
 
 class RulesCfg(BaseModel):
@@ -63,6 +65,13 @@ class Cfg(BaseModel):
 _def_path = os.environ.get("CONFIG_PATH", "config.yaml")
 
 def load_config(path: str | None = None) -> Cfg:
-    with open(path or _def_path, "r", encoding="utf-8") as f:
+    cfg_path = Path(path or _def_path)
+    with cfg_path.open("r", encoding="utf-8") as f:
         raw = yaml.safe_load(f)
-    return Cfg(**raw)
+    cfg = Cfg(**raw)
+    try:
+        logger.info("Загружен конфиг: {}", cfg_path.resolve())
+    except Exception:
+        # Logging should never break config loading; ignore resolution errors.
+        logger.info("Загружен конфиг: {}", cfg_path)
+    return cfg
