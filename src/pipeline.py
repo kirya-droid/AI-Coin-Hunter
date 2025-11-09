@@ -149,7 +149,7 @@ def pipeline_once():
                 current_time=snapshot_time,
             )
             news_cfg, news_reason = _resolve_news_cfg(cfg)
-            logger.info("CryptoPanic: {}", news_reason)
+            logger.info(f"CryptoPanic: {news_reason}")
             if news_cfg is not None:
                 enabled_flag = "yes" if getattr(news_cfg, "enabled", False) else "no"
                 lookback_hours = getattr(news_cfg, "lookback_hours", "?")
@@ -163,6 +163,7 @@ def pipeline_once():
                     min_votes,
                 )
             news_map: dict[str, dict] = {}
+            news_fallback: str | None = None
             if news_cfg and news_cfg.enabled:
                 symbols = feats["symbol"].tolist()
                 unique_symbol_count = len({sym.upper() for sym in symbols if sym})
@@ -180,12 +181,21 @@ def pipeline_once():
                     f"тикеров, заголовков={total_headlines}"
                 )
                 if total_headlines == 0:
-                    logger.warning("CryptoPanic: заголовки не найдены для текущего запуска")
+                    lookback_text = f"{lookback}ч" if lookback else "указанный период"
+                    logger.warning(
+                        "CryptoPanic: заголовки не найдены за %s — проверьте фильтры или наличие новостей",
+                        lookback_text,
+                    )
                 feats = feats.copy()
                 feats["symbol_upper"] = feats["symbol"].str.upper()
                 feats["news_count"] = feats["symbol_upper"].map(lambda sym: len(news_map.get(sym, {}).get("headlines", [])))
                 feats["news_sentiment"] = feats["symbol_upper"].map(lambda sym: news_map.get(sym, {}).get("sentiment_score", 0.0))
                 feats.drop(columns=["symbol_upper"], inplace=True)
+                if total_headlines == 0:
+                    if lookback:
+                        news_fallback = f"релевантных новостей не найдено за последние {lookback}ч"
+                    else:
+                        news_fallback = "релевантных новостей не найдено за указанный период"
             else:
                 if news_cfg and not news_cfg.enabled:
                     logger.info("CryptoPanic новости отключены конфигурацией")
@@ -221,7 +231,11 @@ def pipeline_once():
                     temperature=getattr(llm_cfg, "temperature", None) if llm_cfg else None,
                     max_tokens=getattr(llm_cfg, "max_tokens", None) if llm_cfg else None,
                     window_hours=performance_window,
-                    news_brief=(news_map.get(it["symbol"].upper(), {}).get("headline_summary") if news_map else None),
+                    news_brief=(
+                        news_map.get(it["symbol"].upper(), {}).get("headline_summary")
+                        if news_map and news_map.get(it["symbol"].upper(), {}).get("headline_summary")
+                        else news_fallback
+                    ),
                 )
                 news_info = news_map.get(it["symbol"].upper()) if news_map else None
                 if news_info:
@@ -244,7 +258,12 @@ def pipeline_once():
                     window_hours=performance_window,
                 )
                 ml_score = ml_scores[idx] if idx < len(ml_scores) else None
-                news_brief = news_map.get(it["symbol"].upper(), {}).get("headline_summary") if news_map else None
+                news_brief = None
+                if news_map:
+                    summary_text = news_map.get(it["symbol"].upper(), {}).get("headline_summary")
+                    news_brief = summary_text if summary_text else news_fallback
+                elif news_fallback:
+                    news_brief = news_fallback
                 ml_threshold = None
                 if ml_bundle:
                     ml_threshold = getattr(cfg.ml, "threshold", None) or ml_bundle.threshold
