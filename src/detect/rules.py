@@ -13,8 +13,19 @@ def detect_by_rules(df: pd.DataFrame, *,
         (df["rvol"].fillna(0) >= min_rvol)
     )
     cols = [
-        "asset_id", "symbol", "name", "current_price", "market_cap",
-        "price_change_percentage_24h", "total_volume", "volume_change_24h_pct", "rvol"
+        "asset_id",
+        "symbol",
+        "name",
+        "current_price",
+        "market_cap",
+        "price_change_percentage_24h",
+        "price_change_percentage_7d",
+        "price_change_percentage_30d",
+        "total_volume",
+        "volume_change_24h_pct",
+        "rvol",
+        "intraday_range_pct",
+        "volatility_annualized_pct",
     ]
     out = df.loc[mask, cols].sort_values("price_change_percentage_24h", ascending=False)
     return out.to_dict(orient="records")

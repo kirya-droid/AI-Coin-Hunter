@@ -6,7 +6,13 @@ sources:
     enabled: true
     top_n: 200
   news:
-    enabled: false   # включим позже
+    enabled: false   # устаревший раздел, сохранён для обратной совместимости
+  cryptopanic:
+    enabled: false
+    auth_token: ""
+    min_votes: 0
+    max_headlines: 3
+    lookback_hours: 24
 anomaly:
   mode: rules
   rules:
@@ -14,8 +20,18 @@ anomaly:
     min_volume_change_24h_pct: 200
     min_rvol: 3
     min_market_cap_usd: 5000000
+    performance_window_hours: 24
+llm:
+  model: gpt-5-nano
+  temperature: 0.35
+  max_tokens: 220
 notify:
   telegram:
     enabled: true
 schedule:
   interval_minutes: 30
+ml:
+  enabled: false
+  model_path: models/baseline.joblib
+  threshold: 0.55
+  feature_overrides: []
